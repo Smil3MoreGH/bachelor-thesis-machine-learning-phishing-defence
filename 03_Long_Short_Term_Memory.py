@@ -9,6 +9,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, Ha
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay  # For model evaluation
 from sklearn.model_selection import train_test_split  # For model selection and evaluation
 from wordcloud import WordCloud  # For generating a word cloud
+from joblib import dump, load
+import pandas as pd
+from sklearn.metrics import classification_report, confusion_matrix
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -115,7 +118,7 @@ plt.show()
 # _________________________Vectorization method selection here_________________________
 # Vectorizing email text for feature extraction
 # The method of vectorization can be chosen from 'tfidf', 'count', or 'hashing'
-vectorization_method = 'count'
+vectorization_method = 'tfidf'
 
 # Preparing the dataset 'df' and the target 'y' for modeling
 y = df['Email Type'].values
@@ -136,6 +139,9 @@ if vectorization_method in ['tfidf', 'count']:
     X = current_vectorizer.fit_transform(df['Email Text']).toarray()
 else:  # For 'hashing', directly transform the text without fitting
     X = current_vectorizer.transform(df['Email Text']).toarray()
+
+# Here I save the fitted vectorizer to disk
+dump(current_vectorizer, 'LSTM_vectorizer.joblib')
 
 # Displaying the dimensions of the feature matrix 'X' and target vector 'y' post-vectorization
 print(f"Text data vectorized using {vectorization_method.upper()}. Observing shapes of X and y:")
@@ -273,3 +279,100 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(loc='upper left')
 plt.show()
+
+# Plot the Precision-Recall (PR) curve
+from sklearn.metrics import precision_recall_curve, PrecisionRecallDisplay
+import matplotlib.pyplot as plt
+# Assuming `model` is your trained model and X_test is your test dataset
+# Predict probabilities for the positive class
+y_scores = model.predict(X_test)[:, 1]
+# Calculate precision and recall for all thresholds
+precision, recall, thresholds = precision_recall_curve(y_test, y_scores)
+# Plot the Precision-Recall curve
+display = PrecisionRecallDisplay(precision=precision, recall=recall)
+display.plot()
+
+plt.title('Precision-Recall curve')
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.show()
+
+# Plot the Cumulative Gain Curve
+#def plot_cumulative_gain(y_true, y_scores):
+#    # Sort scores and corresponding truth values
+#    sorted_indices = np.argsort(y_scores)[::-1]
+#    y_true_sorted = y_true[sorted_indices]
+#
+#    # Calculate the cumulative sum of the true positive instances
+#    cum_true_positives = np.cumsum(y_true_sorted)
+#    # Normalize by the total number of positives to get the cumulative gains
+#    cum_gains = cum_true_positives / cum_true_positives[-1]
+#
+#    # Calculate the baseline (random model's performance)
+#    baseline = np.linspace(0, 1, len(cum_gains))
+#
+#    # Plotting the Cumulative Gains
+#    plt.figure(figsize=(10, 6))
+#    plt.plot(cum_gains, label='Model')
+#    plt.plot(baseline, label='Baseline', linestyle='--')
+#    plt.title('Cumulative Gains Curve')
+#    plt.xlabel('Percentage of samples')
+#    plt.ylabel('Cumulative gain')
+#    plt.legend()
+#    plt.show()
+
+#plot_cumulative_gain(y_test, y_scores)
+
+# _________________________Saving model starts here_________________________
+# Save the model to a file
+dump(model, 'LSTM_trained_model.joblib')
+
+# Load the model from the file
+model = load('LSTM_trained_model.joblib')
+vectorizer = load('LSTM_vectorizer.joblib')
+
+# Now I can use `model` to make predictions on new data
+# https://www.kaggle.com/datasets/phangud/spamcsv
+
+# Loading the phishing email dataset
+print("Loading dataset 2...")
+# Reading the dataset from a CSV file
+df_new = pd.read_csv("Phishing_SMS.csv", delimiter=';')
+# Displaying the first few entries of the dataset to verify it's loaded correctly
+print("Dataset successfully loaded. Displaying the first few entries:")
+print(df_new.head(), '\n')
+
+# Drop rows with any NaN values
+df_new = df_new.dropna()
+
+# Preprocess the new dataset
+# Assuming that the new dataset requires the same preprocessing and has a column named 'Email Text'
+df_new['Email Text'] = df_new['Email Text'].apply(preprocess_text)  # Use the same preprocessing function
+df_new['URLs Count'] = df_new['Email Text'].apply(count_urls)
+df_new['Contains HTML'] = df_new['Email Text'].apply(contains_html)
+df_new['Length'] = df_new['Email Text'].apply(len)
+
+# Vectorize the new data
+X_new = vectorizer.transform(df_new['Email Text']).toarray()
+
+df_new['Email Type'] = df_new['Email Type'].replace(['Safe Email', 'Phishing Email'], [0, 1])
+y_new = df_new['Email Type'].values
+
+y_new = y_new.astype(int)
+print("Unique values in y_new:", np.unique(y_new))
+from imblearn.over_sampling import SMOTE
+
+# Applying SMOTE to the vectorized new data
+smote = SMOTE(random_state=42)
+X_new_resampled, y_new_resampled = smote.fit_resample(X_new, y_new)
+
+print("After SMOTE:")
+print("Unique values in y_new_resampled:", np.unique(y_new_resampled))
+
+# Predict using the loaded model on the SMOTE-resampled new data
+y_pred_new_resampled = model.predict(X_new_resampled)
+
+# Evaluation on the SMOTE-resampled new data
+print(classification_report(y_new_resampled, y_pred_new_resampled))
+print("Confusion matrix output:")
+print(confusion_matrix(y_new_resampled, y_pred_new_resampled))

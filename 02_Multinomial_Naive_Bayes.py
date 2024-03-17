@@ -9,6 +9,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, Ha
 from sklearn.metrics import auc, classification_report, confusion_matrix, ConfusionMatrixDisplay, roc_curve  # For model evaluation
 from sklearn.model_selection import GridSearchCV, learning_curve, train_test_split  # For model selection and evaluation
 from wordcloud import WordCloud  # For generating a word cloud
+from joblib import dump, load
+import pandas as pd
+from sklearn.metrics import classification_report, confusion_matrix
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -115,7 +118,7 @@ plt.show()
 # _________________________Vectorization method selection here_________________________
 # Vectorizing email text for feature extraction
 # The method of vectorization can be chosen from 'tfidf', 'count', or 'hashing'
-vectorization_method = 'count'
+vectorization_method = 'tfidf'
 
 # Preparing the dataset 'df' and the target 'y' for modeling
 y = df['Email Type'].values
@@ -136,6 +139,9 @@ if vectorization_method in ['tfidf', 'count']:
     X = current_vectorizer.fit_transform(df['Email Text']).toarray()
 else:  # For 'hashing', directly transform the text without fitting
     X = current_vectorizer.transform(df['Email Text']).toarray()
+
+# Here I save the fitted vectorizer to disk
+dump(current_vectorizer, 'MNB_vectorizer.joblib')
 
 # Displaying the dimensions of the feature matrix 'X' and target vector 'y' post-vectorization
 print(f"Text data vectorized using {vectorization_method.upper()}. Observing shapes of X and y:")
@@ -291,10 +297,9 @@ plt.legend(loc="best")
 plt.show()
 
 # Calculating and Plotting the ROC Curve and AUC
-# This illustrates the model's ability to distinguish between the two classes
 print("Calculating ROC curve and AUC to evaluate model's discriminative ability...")
-# Get the decision function scores for each prediction
-y_score = model.decision_function(X_test)
+# Get the probability estimates for each prediction
+y_score = model.predict_proba(X_test)[:, 1]
 # Calculate False Positive Rate, True Positive Rate, and thresholds
 fpr, tpr, _ = roc_curve(y_test, y_score)
 # Calculate the Area Under the Curve (AUC) for the ROC
@@ -322,23 +327,133 @@ feature_names = np.array(current_vectorizer.get_feature_names_out())
 # Identifying the indices of the top features for each class
 top_features_per_class = np.argsort(feature_log_prob, axis=1)[:, -top_n_features:]
 
-# Display the top features for phishing (class 1) and safe emails (class 0)
-for i, class_indices in enumerate(top_features_per_class):
-    print(f"\nTop features for class {i} ('Phishing Email' if i == 1 else 'Safe Email'):")
-    top_features = feature_names[class_indices]
-    # Display the feature names
-    for feature in top_features:
-        print(f"    {feature}")
+import matplotlib.pyplot as plt
+import numpy as np
+# Assuming 'feature_log_prob' and 'feature_names' are already defined as in your previous context
+# Also assuming 'model' is already trained and is a MultinomialNB model instance
+top_n_features = 20  # Number of top features to show
+# Plot top and bottom indicative features for each class
+def plot_feature_importance(class_index, feature_log_prob, feature_names, top_n_features):
+    # Sorting indices by feature log probability
+    sorted_indices = np.argsort(feature_log_prob[class_index])
+    # Combine top bottom indices
+    combined_indices = np.concatenate([sorted_indices[:top_n_features], sorted_indices[-top_n_features:]])
+    # Get corresponding feature names and log probabilities
+    features = feature_names[combined_indices]
+    log_probs = feature_log_prob[class_index, combined_indices]
 
-# Optionally, visualize the top features for a specific class (e.g., phishing emails)
-class_index = 1  # 0 for safe email, 1 for phishing email
-plt.figure(figsize=(12, 8))
-# Sort the top features by their log probability values
-sorted_indices = np.argsort(feature_log_prob[class_index, top_features_per_class[class_index]])
-# Create a horizontal bar chart
-plt.barh(range(top_n_features), feature_log_prob[class_index, top_features_per_class[class_index]][sorted_indices], align='center', color='dodgerblue')
-plt.yticks(range(top_n_features), feature_names[top_features_per_class[class_index]][sorted_indices])
-plt.xlabel('Log Probability')
-plt.title(f'Top {top_n_features} Influential Features for Model: MNB with ({vectorization_method.upper()})')
-plt.gca().invert_yaxis()  # Ensure the top features are at the top of the plot
+    # Colors for the bars
+    colors = ['red' if i < top_n_features else 'blue' for i in range(2 * top_n_features)]
+
+    # Plot
+    plt.figure(figsize=(12, 8))
+    y_vals = np.arange(2 * top_n_features)
+    plt.barh(y_vals, log_probs, color=colors, edgecolor='black')
+    plt.yticks(y_vals, features)
+    plt.gca().invert_yaxis()  # To display the top feature at the top
+    plt.xlabel('Log Probability')
+    class_name = 'Phishing Email' if class_index == 1 else 'Safe Email'
+    plt.title(f'Top and Bottom {top_n_features} Indicative Features for {class_name}')
+    plt.tight_layout()  # Fit the plot neatly
+    plt.show()
+
+# Display the feature importances for each class
+for class_index in [0, 1]:  # Assuming binary classification for Safe Email (0) and Phishing Email (1)
+    plot_feature_importance(class_index, feature_log_prob, feature_names, top_n_features)
+# Plot the Precision-Recall (PR) curve
+from sklearn.metrics import precision_recall_curve, PrecisionRecallDisplay
+import matplotlib.pyplot as plt
+# Assuming `model` is your trained model and X_test is your test dataset
+# Predict probabilities for the positive class
+y_scores = model.predict_proba(X_test)[:, 1]
+# Calculate precision and recall for all thresholds
+precision, recall, thresholds = precision_recall_curve(y_test, y_scores)
+
+# Plot the Precision-Recall curve
+display = PrecisionRecallDisplay(precision=precision, recall=recall)
+display.plot()
+
+plt.title('Precision-Recall curve')
+plt.xlabel('Recall')
+plt.ylabel('Precision')
 plt.show()
+
+# Plot the Cumulative Gain Curve
+def plot_cumulative_gain(y_true, y_scores):
+    # Sort scores and corresponding truth values
+    sorted_indices = np.argsort(y_scores)[::-1]
+    y_true_sorted = y_true[sorted_indices]
+
+    # Calculate the cumulative sum of the true positive instances
+    cum_true_positives = np.cumsum(y_true_sorted)
+    # Normalize by the total number of positives to get the cumulative gains
+    cum_gains = cum_true_positives / cum_true_positives[-1]
+
+    # Calculate the baseline (random model's performance)
+    baseline = np.linspace(0, 1, len(cum_gains))
+
+    # Plotting the Cumulative Gains
+    plt.figure(figsize=(10, 6))
+    plt.plot(cum_gains, label='Model')
+    plt.plot(baseline, label='Baseline', linestyle='--')
+    plt.title('Cumulative Gains Curve')
+    plt.xlabel('Percentage of samples')
+    plt.ylabel('Cumulative gain')
+    plt.legend()
+    plt.show()
+
+plot_cumulative_gain(y_test, y_scores)
+
+# _________________________Saving model starts here_________________________
+# Save the model to a file
+dump(model, 'MNB_trained_model.joblib')
+
+# Load the model from the file
+model = load('MNB_trained_model.joblib')
+vectorizer = load('MNB_vectorizer.joblib')
+
+# Now I can use `model` to make predictions on new data
+# https://www.kaggle.com/datasets/phangud/spamcsv
+
+# Loading the phishing email dataset
+print("Loading dataset 2...")
+# Reading the dataset from a CSV file
+df_new = pd.read_csv("Phishing_SMS.csv", delimiter=';')
+# Displaying the first few entries of the dataset to verify it's loaded correctly
+print("Dataset successfully loaded. Displaying the first few entries:")
+print(df_new.head(), '\n')
+
+# Drop rows with any NaN values
+df_new = df_new.dropna()
+
+# Preprocess the new dataset
+# Assuming that the new dataset requires the same preprocessing and has a column named 'Email Text'
+df_new['Email Text'] = df_new['Email Text'].apply(preprocess_text)  # Use the same preprocessing function
+df_new['URLs Count'] = df_new['Email Text'].apply(count_urls)
+df_new['Contains HTML'] = df_new['Email Text'].apply(contains_html)
+df_new['Length'] = df_new['Email Text'].apply(len)
+
+# Vectorize the new data
+X_new = vectorizer.transform(df_new['Email Text']).toarray()
+
+df_new['Email Type'] = df_new['Email Type'].replace(['Safe Email', 'Phishing Email'], [0, 1])
+y_new = df_new['Email Type'].values
+
+y_new = y_new.astype(int)
+print("Unique values in y_new:", np.unique(y_new))
+from imblearn.over_sampling import SMOTE
+
+# Applying SMOTE to the vectorized new data
+smote = SMOTE(random_state=42)
+X_new_resampled, y_new_resampled = smote.fit_resample(X_new, y_new)
+
+print("After SMOTE:")
+print("Unique values in y_new_resampled:", np.unique(y_new_resampled))
+
+# Predict using the loaded model on the SMOTE-resampled new data
+y_pred_new_resampled = model.predict(X_new_resampled)
+
+# Evaluation on the SMOTE-resampled new data
+print(classification_report(y_new_resampled, y_pred_new_resampled))
+print("Confusion matrix output:")
+print(confusion_matrix(y_new_resampled, y_pred_new_resampled))
