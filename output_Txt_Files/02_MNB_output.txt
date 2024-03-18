@@ -1,0 +1,126 @@
+C:\Users\Paul\anaconda3\envs\bachelor\python.exe C:\Users\Paul\PycharmProjects\Machine-learning-for-defence-against-phishing-attacks-An-evaluation-study-and-performance-comparison\02_Multinomial_Naive_Bayes.py
+Loading dataset...
+Dataset successfully loaded. Displaying the first few entries:
+   Unnamed: 0  ...      Email Type
+0           0  ...      Safe Email
+1           1  ...      Safe Email
+2           2  ...      Safe Email
+3           3  ...  Phishing Email
+4           4  ...  Phishing Email
+
+[5 rows x 3 columns]
+
+Preprocessing data...
+Data preprocessing finished. Displaying the updated first few entries:
+                                          Email Text  ...  Length
+0  : 6 . 1100 , disc : uniformitarianism , : 1086...  ...     710
+1  side * galicismos * * galicismo * spanish term...  ...     348
+2  : equistar deal ticket still available assist ...  ...     971
+3  hello hot lil horny toy. one dream about, open...  ...     470
+4  software incredibly low price ( 86 % lower ) ....  ...     414
+
+[5 rows x 5 columns]
+
+Generating word cloud for email text visualization...
+Analyzing class distribution prior to SMOTE application...
+Text data vectorized using TFIDF. Observing shapes of X and y:
+Shape of X: (18634, 20000)
+Shape of y: (18634,)
+
+Implementing SMOTE for class balance enhancement...
+Post-SMOTE class distribution:
+0    11322
+1    11322
+Name: count, dtype: int64
+
+Visual representation of class distribution following SMOTE enhancement...
+Dividing dataset into training and testing subsets...
+Dataset division completed. Shapes of training and testing sets displayed:
+Training set shape: (18115, 20000)
+Testing set shape: (4529, 20000)
+
+Descriptive statistics for new features after removing emails with >25 URLs:
+         URLs Count  Contains HTML
+count  18603.000000   18603.000000
+mean       0.755416       0.017524
+std        1.568545       0.131217
+min        0.000000       0.000000
+25%        0.000000       0.000000
+50%        0.000000       0.000000
+75%        1.000000       0.000000
+max       25.000000       1.000000
+
+Performing cross-validation to gauge baseline model performance...
+Cross-validation accuracy scores obtained: [0.9699713  0.97129609 0.95694414 0.95826893 0.9604682 ]
+Computed average accuracy score from cross-validation: 0.9633897314284778
+
+Exploring alpha parameter with GridSearchCV to refine model performance...
+Optimal parameters identified: {'alpha': 0.1}
+Best scoring accuracy achieved through cross-validation: 0.9583218327353021
+
+Training completed in 38.600 seconds
+Conducting predictions on the test dataset...
+Presenting classification metrics and confusion matrix for assessment:
+              precision    recall  f1-score   support
+
+           0       0.93      0.98      0.96      2246
+           1       0.98      0.93      0.96      2283
+
+    accuracy                           0.96      4529
+   macro avg       0.96      0.96      0.96      4529
+weighted avg       0.96      0.96      0.96      4529
+
+Confusion matrix output:
+[[2212   34]
+ [ 158 2125]]
+
+Prediction completed in 0.189 seconds
+Optimal parameters identified: {'alpha': 0.1}
+Best scoring accuracy achieved through cross-validation: 0.9583218327353021
+
+Conducting predictions on the test dataset...
+Presenting classification metrics and confusion matrix for assessment:
+              precision    recall  f1-score   support
+
+           0       0.93      0.98      0.96      2246
+           1       0.98      0.93      0.96      2283
+
+    accuracy                           0.96      4529
+   macro avg       0.96      0.96      0.96      4529
+weighted avg       0.96      0.96      0.96      4529
+
+Confusion matrix output:
+[[2212   34]
+ [ 158 2125]]
+
+Prediction completed in 0.187 seconds
+Generating visual display of the confusion matrix for enhanced interpretability...
+Generating learning curve to assess model training performance...
+Calculating ROC curve and AUC to evaluate model's discriminative ability...
+Analyzing feature significance based on log probabilities for Naive Bayes...
+Loading dataset 2...
+Dataset successfully loaded. Displaying the first few entries:
+                                          Email Text      Email Type
+0  Free entry in 2 a wkly comp to win FA Cup fina...  Phishing Email
+1  FreeMsg Hey there darling it's been 3 week's n...  Phishing Email
+2  WINNER!! As a valued network customer you have...  Phishing Email
+3  Had your mobile 11 months or more? U R entitle...  Phishing Email
+4  SIX chances to win CASH! From 100 to 20,000 po...  Phishing Email
+
+Unique values in y_new: [0 1]
+After SMOTE:
+Unique values in y_new_resampled: [0 1]
+              precision    recall  f1-score   support
+
+           0       0.70      0.45      0.55      1139
+           1       0.59      0.81      0.69      1139
+
+    accuracy                           0.63      2278
+   macro avg       0.65      0.63      0.62      2278
+weighted avg       0.65      0.63      0.62      2278
+
+Confusion matrix output:
+[[508 631]
+ [213 926]]
+
+Process finished with exit code 0
