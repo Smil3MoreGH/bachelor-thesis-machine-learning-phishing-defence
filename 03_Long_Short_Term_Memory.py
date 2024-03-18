@@ -233,7 +233,7 @@ optimizer = Adam(learning_rate=0.001)  # Adjust learning rate
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
 # Fit the model
-epochs = 2
+epochs = 10
 batch_size = 128
 
 training_start_time = time.time()
