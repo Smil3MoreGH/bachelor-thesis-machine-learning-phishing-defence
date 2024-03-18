@@ -1,22 +1,39 @@
-import time  # For timing operations
-import matplotlib.pyplot as plt  # For plotting graphs
-import numpy as np  # For numerical operations
-import pandas as pd  # For data manipulation and analysis
-from imblearn.over_sampling import SMOTE  # For handling class imbalance by oversampling
-from nltk.corpus import stopwords  # For removing stopwords from text
-from nltk.stem import WordNetLemmatizer  # For lemmatizing words to their base form
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, HashingVectorizer  # For converting text to vector form
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay  # For model evaluation
-from sklearn.model_selection import train_test_split  # For model selection and evaluation
-from wordcloud import WordCloud  # For generating a word cloud
-from joblib import dump, load
-import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
+import matplotlib.pyplot as plt  # Used for creating static, interactive, and animated visualizations
+import numpy as np  # Fundamental package for scientific computing with Python
+import pandas as pd  # Provides high-performance, easy-to-use data structures and data analysis tools
+import re  # Provides regular expression matching operations
+import nltk  # A leading platform for building Python programs to work with human language data
+import time  # Provides various time-related functions
+import warnings  # Used to warn the developer of situations that aren’t necessarily exceptions
 
-import warnings
-warnings.filterwarnings('ignore')
+from imblearn.over_sampling import SMOTE  # Implements SMOTE - Synthetic Minority Over-sampling Technique
+from joblib import dump, load  # Provides tools for saving and loading Python objects that make use of NumPy data structures
 
-import nltk
+import tensorflow as tf  # An end-to-end open-source platform for machine learning
+from tensorflow.keras.models import Sequential  # Allows creation of a linear stack of layers in the model
+from tensorflow.keras.layers import LSTM, Dense, Embedding, SpatialDropout1D  # Provides layers commonly used for deep learning models
+from tensorflow.keras.optimizers import Adam  # Implements the Adam optimization algorithm
+from tensorflow.keras.callbacks import EarlyStopping  # Allows training to stop early based on the performance of the validation set
+from tensorflow.keras.utils import to_categorical  # Converts a class vector (integers) to binary class matrix
+from tensorflow.keras.preprocessing.sequence import pad_sequences  # Used for sequence padding
+from tensorflow.keras.preprocessing.text import Tokenizer  # Text tokenization utility class
+
+from nltk.corpus import stopwords  # A list of common words that are usually ignored in text processing
+from nltk.stem import WordNetLemmatizer  # Used for lemmatizing words to their root form
+
+from sklearn.feature_extraction.text import CountVectorizer, HashingVectorizer, TfidfVectorizer  # Transform text to vector based on the frequency of each word that occurs in the entire text
+from sklearn.linear_model import LogisticRegression  # Implements logistic regression for binary classification tasks
+from sklearn.metrics import auc, classification_report, confusion_matrix, roc_curve  # Provides tools to evaluate the model performance
+from sklearn.metrics import precision_recall_curve, PrecisionRecallDisplay, ConfusionMatrixDisplay  # More tools for model evaluation, specifically for binary classification
+from sklearn.model_selection import GridSearchCV, cross_val_score, learning_curve, train_test_split  # Tools for splitting data, cross-validation, and model evaluation
+from sklearn.naive_bayes import MultinomialNB  # Implements the naive Bayes algorithm for multinomially distributed data
+from sklearn.preprocessing import LabelEncoder  # Used to encode target labels with value between 0 and n_classes-1
+
+from wordcloud import WordCloud  # Used to generate a word cloud image from text
+
+warnings.filterwarnings('ignore')  # Suppresses warnings
+print(tf.__version__)
+
 # Ensuring the necessary NLTK datasets are downloaded
 # This is done to avoid redundant downloads and ensure the required data is available for text processing
 nltk_data_needed = ['wordnet', 'stopwords']
@@ -43,7 +60,6 @@ def count_urls(text):
     return urls_http
 
 # Function to check for HTML content within the text
-import re  # Import the regular expressions library
 def contains_html(text):
     text = str(text)  # Ensure text is in string format
     # Regular expression to match common HTML tags
@@ -190,16 +206,6 @@ print(filtered_df[['URLs Count', 'Contains HTML']].describe(), '\n')
 
 
 # The decision to exclude certain features is based on preliminary model performance evaluations.
-import tensorflow as tf
-print(tf.__version__)
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Embedding, SpatialDropout1D
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.callbacks import EarlyStopping
-from sklearn.preprocessing import LabelEncoder
-from tensorflow.keras.utils import to_categorical
 
 # Tokenize text
 tokenizer = Tokenizer(num_words=5000, lower=True)
@@ -227,8 +233,8 @@ optimizer = Adam(learning_rate=0.001)  # Adjust learning rate
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
 # Fit the model
-epochs = 20
-batch_size = 64
+epochs = 2
+batch_size = 128
 
 training_start_time = time.time()
 
@@ -281,13 +287,12 @@ plt.legend(loc='upper left')
 plt.show()
 
 # Plot the Precision-Recall (PR) curve
-from sklearn.metrics import precision_recall_curve, PrecisionRecallDisplay
-import matplotlib.pyplot as plt
-# Assuming `model` is your trained model and X_test is your test dataset
-# Predict probabilities for the positive class
 y_scores = model.predict(X_test)[:, 1]
-# Calculate precision and recall for all thresholds
-precision, recall, thresholds = precision_recall_curve(y_test, y_scores)
+y_true_binary = np.argmax(y_test, axis=1)  # Convert from one-hot to binary if necessary
+
+# Now calculate precision and recall
+precision, recall, thresholds = precision_recall_curve(y_true_binary, y_scores)
+
 # Plot the Precision-Recall curve
 display = PrecisionRecallDisplay(precision=precision, recall=recall)
 display.plot()
@@ -298,41 +303,42 @@ plt.ylabel('Precision')
 plt.show()
 
 # Plot the Cumulative Gain Curve
-#def plot_cumulative_gain(y_true, y_scores):
-#    # Sort scores and corresponding truth values
-#    sorted_indices = np.argsort(y_scores)[::-1]
-#    y_true_sorted = y_true[sorted_indices]
-#
-#    # Calculate the cumulative sum of the true positive instances
-#    cum_true_positives = np.cumsum(y_true_sorted)
-#    # Normalize by the total number of positives to get the cumulative gains
-#    cum_gains = cum_true_positives / cum_true_positives[-1]
-#
-#    # Calculate the baseline (random model's performance)
-#    baseline = np.linspace(0, 1, len(cum_gains))
-#
-#    # Plotting the Cumulative Gains
-#    plt.figure(figsize=(10, 6))
-#    plt.plot(cum_gains, label='Model')
-#    plt.plot(baseline, label='Baseline', linestyle='--')
-#    plt.title('Cumulative Gains Curve')
-#    plt.xlabel('Percentage of samples')
-#    plt.ylabel('Cumulative gain')
-#    plt.legend()
-#    plt.show()
+def plot_cumulative_gain(y_true, y_scores):
+    # Sort scores and corresponding truth values
+    sorted_indices = np.argsort(y_scores)[::-1]
+    y_true_sorted = y_true[sorted_indices]
 
-#plot_cumulative_gain(y_test, y_scores)
+    # Calculate the cumulative sum of the true positive instances
+    cum_true_positives = np.cumsum(y_true_sorted)
+    # Normalize by the total number of positives to get the cumulative gains
+    cum_gains = cum_true_positives / cum_true_positives[-1]
+
+    # Calculate the baseline (random model's performance)
+    baseline = np.linspace(0, 1, len(cum_gains))
+
+    # Plotting the Cumulative Gains
+    plt.figure(figsize=(10, 6))
+    plt.plot(cum_gains, label='Model')
+    plt.plot(baseline, label='Baseline', linestyle='--')
+    plt.title('Cumulative Gains Curve')
+    plt.xlabel('Percentage of samples')
+    plt.ylabel('Cumulative gain')
+    plt.legend()
+    plt.show()
+
+plot_cumulative_gain(y_test, y_scores)
+
 
 # _________________________Saving model starts here_________________________
+# https://www.kaggle.com/datasets/phangud/spamcsv
+
+
 # Save the model to a file
 dump(model, 'LSTM_trained_model.joblib')
 
 # Load the model from the file
 model = load('LSTM_trained_model.joblib')
 vectorizer = load('LSTM_vectorizer.joblib')
-
-# Now I can use `model` to make predictions on new data
-# https://www.kaggle.com/datasets/phangud/spamcsv
 
 # Loading the phishing email dataset
 print("Loading dataset 2...")
@@ -346,33 +352,37 @@ print(df_new.head(), '\n')
 df_new = df_new.dropna()
 
 # Preprocess the new dataset
-# Assuming that the new dataset requires the same preprocessing and has a column named 'Email Text'
-df_new['Email Text'] = df_new['Email Text'].apply(preprocess_text)  # Use the same preprocessing function
+df_new['Email Text'] = df_new['Email Text'].apply(preprocess_text)
 df_new['URLs Count'] = df_new['Email Text'].apply(count_urls)
 df_new['Contains HTML'] = df_new['Email Text'].apply(contains_html)
 df_new['Length'] = df_new['Email Text'].apply(len)
 
-# Vectorize the new data
-X_new = vectorizer.transform(df_new['Email Text']).toarray()
+# Tokenize and pad the text data
+sequences_new = tokenizer.texts_to_sequences(df_new['Email Text'])
+X_new_padded = pad_sequences(sequences_new, maxlen=250)
 
+# Convert labels to one-hot encoding
 df_new['Email Type'] = df_new['Email Type'].replace(['Safe Email', 'Phishing Email'], [0, 1])
-y_new = df_new['Email Type'].values
+integer_encoded_new = label_encoder.transform(df_new['Email Type'])
+y_new_categorical = to_categorical(integer_encoded_new)
 
-y_new = y_new.astype(int)
-print("Unique values in y_new:", np.unique(y_new))
-from imblearn.over_sampling import SMOTE
+# Predicting and evaluating the model on the new dataset
+y_pred_new = model.predict(X_new_padded)
 
-# Applying SMOTE to the vectorized new data
-smote = SMOTE(random_state=42)
-X_new_resampled, y_new_resampled = smote.fit_resample(X_new, y_new)
+# Evaluate the model's performance on the new dataset
+loss, accuracy = model.evaluate(X_new_padded, y_new_categorical)
+print(f'Accuracy on the new dataset: {accuracy*100:.2f}%')
 
-print("After SMOTE:")
-print("Unique values in y_new_resampled:", np.unique(y_new_resampled))
+y_pred_labels = np.argmax(y_pred_new, axis=1)
+# Convert one-hot encoded true labels back to a single label
+y_true_labels = np.argmax(y_new_categorical, axis=1)
+# Calculate the confusion matrix
+cm = confusion_matrix(y_true_labels, y_pred_labels)
+# Print the confusion matrix
+print("Confusion Matrix:")
+print(cm)
 
-# Predict using the loaded model on the SMOTE-resampled new data
-y_pred_new_resampled = model.predict(X_new_resampled)
-
-# Evaluation on the SMOTE-resampled new data
-print(classification_report(y_new_resampled, y_pred_new_resampled))
-print("Confusion matrix output:")
-print(confusion_matrix(y_new_resampled, y_pred_new_resampled))
+# Optionally, display the confusion matrix with labels
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=np.array(['Safe Email', 'Phishing Email']))
+disp.plot(cmap=plt.cm.Blues)
+plt.show()

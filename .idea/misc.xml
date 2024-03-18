@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.11 (Bachelor_Thesis_Final)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="phishing" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="bachelor" project-jdk-type="Python SDK" />
 </project>

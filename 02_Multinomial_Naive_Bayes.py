@@ -1,209 +1,177 @@
-import time  # For timing operations
-import matplotlib.pyplot as plt  # For plotting graphs
-import numpy as np  # For numerical operations
-import pandas as pd  # For data manipulation and analysis
-from imblearn.over_sampling import SMOTE  # For handling class imbalance by oversampling
-from nltk.corpus import stopwords  # For removing stopwords from text
-from nltk.stem import WordNetLemmatizer  # For lemmatizing words to their base form
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, HashingVectorizer  # For converting text to vector form
-from sklearn.metrics import auc, classification_report, confusion_matrix, ConfusionMatrixDisplay, roc_curve  # For model evaluation
-from sklearn.model_selection import GridSearchCV, learning_curve, train_test_split  # For model selection and evaluation
-from wordcloud import WordCloud  # For generating a word cloud
-from joblib import dump, load
-import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
+import matplotlib.pyplot as plt  # Used for creating static, interactive, and animated visualizations
+import numpy as np  # Fundamental package for scientific computing with Python
+import pandas as pd  # Provides high-performance, easy-to-use data structures and data analysis tools
+import re  # Provides regular expression matching operations
+import nltk  # A leading platform for building Python programs to work with human language data
+import time  # Provides various time-related functions
+import warnings  # Used to warn the developer of situations that aren’t necessarily exceptions
 
-import warnings
-warnings.filterwarnings('ignore')
+from imblearn.over_sampling import SMOTE  # Implements SMOTE - Synthetic Minority Over-sampling Technique
+from joblib import dump, load  # Provides tools for saving and loading Python objects that make use of NumPy data structures
 
-import nltk
-# Ensuring the necessary NLTK datasets are downloaded
-# This is done to avoid redundant downloads and ensure the required data is available for text processing
+import tensorflow as tf  # An end-to-end open-source platform for machine learning
+from tensorflow.keras.models import Sequential  # Allows creation of a linear stack of layers in the model
+from tensorflow.keras.layers import LSTM, Dense, Embedding, SpatialDropout1D  # Provides layers commonly used for deep learning models
+from tensorflow.keras.optimizers import Adam  # Implements the Adam optimization algorithm
+from tensorflow.keras.callbacks import EarlyStopping  # Allows training to stop early based on the performance of the validation set
+from tensorflow.keras.utils import to_categorical  # Converts a class vector (integers) to binary class matrix
+from tensorflow.keras.preprocessing.sequence import pad_sequences  # Used for sequence padding
+from tensorflow.keras.preprocessing.text import Tokenizer  # Text tokenization utility class
+
+from nltk.corpus import stopwords  # A list of common words that are usually ignored in text processing
+from nltk.stem import WordNetLemmatizer  # Used for lemmatizing words to their root form
+
+from sklearn.feature_extraction.text import CountVectorizer, HashingVectorizer, TfidfVectorizer  # Transform text to vector based on the frequency of each word that occurs in the entire text
+from sklearn.linear_model import LogisticRegression  # Implements logistic regression for binary classification tasks
+from sklearn.metrics import auc, classification_report, confusion_matrix, roc_curve  # Provides tools to evaluate the model performance
+from sklearn.metrics import precision_recall_curve, PrecisionRecallDisplay, ConfusionMatrixDisplay  # More tools for model evaluation, specifically for binary classification
+from sklearn.model_selection import GridSearchCV, cross_val_score, learning_curve, train_test_split  # Tools for splitting data, cross-validation, and model evaluation
+from sklearn.naive_bayes import MultinomialNB  # Implements the naive Bayes algorithm for multinomially distributed data
+from sklearn.preprocessing import LabelEncoder  # Used to encode target labels with value between 0 and n_classes-1
+
+from wordcloud import WordCloud  # Used to generate a word cloud image from text
+
+warnings.filterwarnings('ignore')  # Suppresses warnings
+
+# Downloading necessary NLTK data sets for text processing
 nltk_data_needed = ['wordnet', 'stopwords']
 for dataset in nltk_data_needed:
-    # The quiet=True option suppresses output unless the download fails
     if not nltk.download(dataset, quiet=True):
         nltk.download(dataset)
 
-# Loading the phishing email dataset
 print("Loading dataset...")
-# Reading the dataset from a CSV file
 df = pd.read_csv("Phishing_Email.csv")
-# Displaying the first few entries of the dataset to verify it's loaded correctly
 print("Dataset successfully loaded. Displaying the first few entries:")
 print(df.head(), '\n')
 
-# Function to count URLs in an email's text
+# Defining functions to count URLs and check for HTML content in emails
 def count_urls(text):
     text = str(text)  # Ensuring the text is a string
-    # This function counts occurrences of "http" and "https" in the text
-    # It's a simple heuristic to find URLs in the text
     urls_http = text.count('http')
-    # Since "https" is included in "http", I only need to count "http" for both
     return urls_http
 
-# Function to check for HTML content within the text
-import re  # Import the regular expressions library
 def contains_html(text):
     text = str(text)  # Ensure text is in string format
-    # Regular expression to match common HTML tags
-    html_pattern = re.compile('<.*?>')  # Matches any text enclosed in angle brackets, which is typical of HTML tags
-    # Search for the pattern in the text
+    html_pattern = re.compile('<.*?>')
     if re.search(html_pattern, text):
-        return 1  # Return 1 (True) if any HTML tags are found
+        return 1
     else:
-        return 0  # Return 0 (False) if no HTML tags are found
+        return 0
 
-# Adding two new features to the dataset based on the email content
-# URLs Count: The number of URLs present in the email text
+# Adding new features to the dataset based on the email content
 df['URLs Count'] = df['Email Text'].apply(count_urls)
-# Contains HTML: Indicates whether the email contains HTML content
 df['Contains HTML'] = df['Email Text'].apply(contains_html)
 
-# Defining the text preprocessing function
+# Text preprocessing to prepare data for modeling
 def preprocess_text(text):
-    text = text.lower()  # Convert the text to lowercase to standardize it
-    text = text.strip()  # Remove leading and trailing whitespace and newlines
-    tokens = text.split()  # Split the text into individual words (tokens)
-    # Remove stopwords to reduce dimensionality and improve model focus on relevant words
+    text = text.lower()
+    text = text.strip()
+    tokens = text.split()
     stop_words = set(stopwords.words('english'))
     tokens = [word for word in tokens if word not in stop_words]
-    # Lemmatize tokens to reduce them to their base or dictionary form (lemma)
     lemmatizer = WordNetLemmatizer()
     tokens = [lemmatizer.lemmatize(word) for word in tokens]
-    # Re-join tokens into a single string for further processing or vectorization
     return ' '.join(tokens)
-    # Note: I considered removal of punctuation and numbers, but model performance was better without
 
-# Preprocessing the dataset to prepare for modeling
 print("Preprocessing data...")
-# Removing unnecessary columns and handling missing values
-# 'Unnamed: 0' is often an artifact from data loading and is not needed for analysis
 df = df.drop(['Unnamed: 0'], axis=1).dropna()
-# Apply the text preprocessing function to clean and standardize the email text data
 df['Email Text'] = df['Email Text'].apply(preprocess_text)
-# Adding a new feature 'Length' to capture the length of the email text after preprocessing
 df['Length'] = df['Email Text'].apply(len)
-# Encoding the 'Email Type' to numeric values for model processing
-# Safe Email = 0, Phishing Email = 1
 df['Email Type'].replace(['Safe Email', 'Phishing Email'], [0, 1], inplace=True)
-# Displaying the first few entries of the preprocessed dataset
 print("Data preprocessing finished. Displaying the updated first few entries:")
 print(df.head(), '\n')
 
-# Creating a word cloud to visualize the most common words in phishing emails
+# Visualizing most common words in phishing emails using a word cloud
 print("Generating word cloud for email text visualization...")
-# Concatenate all email texts into a single string to generate the word cloud
 all_mails = " ".join(df['Email Text'])
-# Generating a word cloud, excluding common stopwords to highlight relevant words
 word_cloud = WordCloud(stopwords=set(stopwords.words('english')), width=900, height=700, mode="RGB").generate(all_mails)
-# Displaying the word cloud in a 10x6 figure
 plt.figure(figsize=(10, 6))
 plt.imshow(word_cloud, interpolation='bilinear')
-plt.axis("off")  # Hiding the axis to focus on the visual representation of word frequency
+plt.axis("off")
 plt.show()
 
-# Analyzing the distribution of email types before applying techniques to handle class imbalance
+# Visualizing class distribution before applying SMOTE to address class imbalance
 print("Analyzing class distribution prior to SMOTE application...")
-# Counting instances of each email type to understand the class distribution
 class_counts = df['Email Type'].value_counts()
-# Visualizing the class distribution as a bar chart
 plt.figure(figsize=(8, 6))
 plt.bar(class_counts.index, class_counts.values, color=['green', 'red'])
-plt.xticks(ticks=[0, 1], labels=['Safe Email', 'Phishing Email'])  # Labeling the categories
-plt.ylabel('Count')  # Label for the y-axis
-plt.title('Email Type Distribution Before SMOTE')  # Chart title
+plt.xticks(ticks=[0, 1], labels=['Safe Email', 'Phishing Email'])
+plt.ylabel('Count')
+plt.title('Email Type Distribution Before SMOTE')
 plt.show()
 
+
 # _________________________Vectorization method selection here_________________________
-# Vectorizing email text for feature extraction
-# The method of vectorization can be chosen from 'tfidf', 'count', or 'hashing'
+
+
+# Vectorizing email text to prepare for machine learning modeling
 vectorization_method = 'tfidf'
 
-# Preparing the dataset 'df' and the target 'y' for modeling
 y = df['Email Type'].values
-# Depending on the chosen method, instantiate the corresponding vectorizer with predefined parameters
 if vectorization_method == 'tfidf':
-    # Using TF-IDF Vectorization
     current_vectorizer = TfidfVectorizer(stop_words='english', max_features=20000)
 elif vectorization_method == 'count':
-    # Using Count Vectorization
     current_vectorizer = CountVectorizer(stop_words='english', max_features=20000)
 elif vectorization_method == 'hashing':
-    # Using Hashing Vectorization, noted for its statelessness
     print("Applying HashingVectorizer on email text...")
     current_vectorizer = HashingVectorizer(stop_words='english', n_features=2**15)
 
-# TF-IDF and Count Vectorization require fitting to the dataset, unlike Hashing Vectorization
 if vectorization_method in ['tfidf', 'count']:
     X = current_vectorizer.fit_transform(df['Email Text']).toarray()
-else:  # For 'hashing', directly transform the text without fitting
+else:  # For 'hashing'
     X = current_vectorizer.transform(df['Email Text']).toarray()
 
-# Here I save the fitted vectorizer to disk
-dump(current_vectorizer, 'MNB_vectorizer.joblib')
+# Saving the vectorizer for later use
+dump(current_vectorizer, 'LR_vectorizer.joblib')
 
-# Displaying the dimensions of the feature matrix 'X' and target vector 'y' post-vectorization
 print(f"Text data vectorized using {vectorization_method.upper()}. Observing shapes of X and y:")
 print("Shape of X:", X.shape)
 print("Shape of y:", y.shape, '\n')
 
-# Employing SMOTE for Class Imbalance (Synthetic Minority Over-sampling Technique)
-# To address class imbalance by generating synthetic examples of the minority class
+# Addressing class imbalance using SMOTE to enhance model performance
 print("Implementing SMOTE for class balance enhancement...")
-smote = SMOTE(random_state=42)  # Initialize SMOTE with a fixed random state for reproducibility
-X_resampled, y_resampled = smote.fit_resample(X, y)  # Apply SMOTE to resample the dataset
-# Display the class distribution after applying SMOTE to highlight the balance achieved
+smote = SMOTE(random_state=42)
+X_resampled, y_resampled = smote.fit_resample(X, y)
 print("Post-SMOTE class distribution:")
 resampled_class_counts = pd.Series(y_resampled).value_counts()
 print(resampled_class_counts, '\n')
 
-# Visualizing Class Distribution After SMOTE
-# This step is crucial for understanding how SMOTE has modified the class distribution to mitigate imbalance
+# Visualizing class distribution after SMOTE application
 print("Visual representation of class distribution following SMOTE enhancement...")
 plt.figure(figsize=(8, 6))
 plt.bar(resampled_class_counts.index, resampled_class_counts.values, color=['green', 'red'])
-plt.xticks(ticks=[0, 1], labels=['Safe Email', 'Phishing Email'])  # Label x-axis with class names for clarity
+plt.xticks(ticks=[0, 1], labels=['Safe Email', 'Phishing Email'])
 plt.ylabel('Count')
 plt.title('Post-SMOTE Email Type Distribution')
 plt.show()
 
-# Splitting the Dataset into Training and Testing Subsets
-# This step divides the dataset to ensure that the model can be trained on one set of data and tested on an unseen set.
-# It helps evaluate its generalization ability
+# Splitting dataset into training and testing parts for model evaluation
 print("Dividing dataset into training and testing subsets...")
 X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
-# Displaying the shapes of the training and testing sets to confirm the split
 print("Dataset division completed. Shapes of training and testing sets displayed:")
 print("Training set shape:", X_train.shape)
 print("Testing set shape:", X_test.shape, '\n')
 
-# After preprocessing and removing outliers, it's useful to reassess the data statistics
-# to understand the impact of preprocessing on the dataset's characteristics.
-# Filter the DataFrame to remove emails with more than 25 URLs
+# Preprocessing and cleaning further by removing outliers based on URL count
 filtered_df = df[df['URLs Count'] <= 25]
 print("Descriptive statistics for new features after removing emails with >25 URLs:")
 print(filtered_df[['URLs Count', 'Contains HTML']].describe(), '\n')
-# The preprocessing phase concludes with the data ready for modeling.
+
 
 # _________________________Model section starts here_________________________
 
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.model_selection import cross_val_score
 
-# Cross-validation is employed to establish a baseline model performance.
-# This step is crucial for understanding the model's accuracy across different subsets of the dataset.
+# Employing cross-validation to assess baseline performance and ensure model robustness across dataset partitions
 print("Performing cross-validation to gauge baseline model performance...")
 model_cv = MultinomialNB()
 cv_scores = cross_val_score(model_cv, X_resampled, y_resampled, cv=5, scoring='accuracy')
 print("Cross-validation accuracy scores obtained:", cv_scores)
 print("Computed average accuracy score from cross-validation:", cv_scores.mean(), '\n')
 
-# Timing the model training phase to quantify the computation time.
+# Initiating model training timing to measure computational efficiency and effectiveness
 training_start_time = time.time()
 
-# With Naive Bayes, hyperparameter tuning might focus on the 'alpha' parameter for smoothing.
-# Note that often the default value of alpha works well, but you can adjust this based on your needs.
+# Tuning the 'alpha' parameter of MultinomialNB for optimal smoothing and performance
 print("Exploring alpha parameter with GridSearchCV to refine model performance...")
 param_grid = {'alpha': [0.01, 0.1, 1, 10, 100]}
 grid_search = GridSearchCV(MultinomialNB(), param_grid, cv=5, scoring='accuracy')
@@ -211,21 +179,18 @@ grid_search.fit(X_train, y_train)
 print("Optimal parameters identified:", grid_search.best_params_)
 print("Best scoring accuracy achieved through cross-validation:", grid_search.best_score_, '\n')
 
-
-# Calculating the training duration helps in assessing the efficiency of the training process.
+# Calculating the duration of the training process to evaluate time efficiency
 training_end_time = time.time()
 training_time = training_end_time - training_start_time
 print(f"Training completed in {training_time:.3f} seconds")
 
-# With the best parameters found, the model is now ready for predictions.
-# This stage evaluates the model's performance on unseen data, simulating how it would perform in real-world scenarios.
+# Configuring the model with the best parameters for prediction readiness and accuracy assessment on new data
 model = grid_search.best_estimator_
 
-# Timing the prediction phase to evaluate efficiency.
+# Starting prediction timing to assess real-world application speed and efficiency
 prediction_start_time = time.time()
 
-# Predicting on the test set and displaying classification metrics provide insights into the model's ability
-# to generalize and its performance across different classes.
+# Making predictions to evaluate the model's generalization capability and classification accuracy
 print("Conducting predictions on the test dataset...")
 y_pred = model.predict(X_test)
 print("Presenting classification metrics and confusion matrix for assessment:")
@@ -233,36 +198,34 @@ print(classification_report(y_test, y_pred))
 print("Confusion matrix output:")
 print(confusion_matrix(y_test, y_pred), '\n')
 
-# The prediction duration gives an idea of the model's speed in practical applications.
+# Calculating prediction process duration to understand application feasibility and speed
 prediction_end_time = time.time()
 prediction_time = prediction_end_time - prediction_start_time
 print(f"Prediction completed in {prediction_time:.3f} seconds")
 
+# Reiterating the achievement of optimal model parameters and performance for documentation and review
 print("Optimal parameters identified:", grid_search.best_params_)
 print("Best scoring accuracy achieved through cross-validation:", grid_search.best_score_, '\n')
 
-# Applying the best parameters found to the model for subsequent predictions and evaluations
+# Finalizing model setup with optimized parameters for enhanced prediction accuracy and re-evaluating model outcomes
 model = grid_search.best_estimator_
-
-# Before making predictions, start timing for the prediction process
 prediction_start_time = time.time()
 
-# Proceeding to predict on the test set with the optimized model and evaluating the outcomes
 print("Conducting predictions on the test dataset...")
 y_pred = model.predict(X_test)
 
-# Displaying the results through classification report and confusion matrix for detailed analysis
 print("Presenting classification metrics and confusion matrix for assessment:")
 print(classification_report(y_test, y_pred))
 print("Confusion matrix output:")
 print(confusion_matrix(y_test, y_pred), '\n')
 
-# After predictions are made, stop timing and calculate duration
 prediction_end_time = time.time()
 prediction_time = prediction_end_time - prediction_start_time
 print(f"Prediction completed in {prediction_time:.3f} seconds")
 
-# This section visualizes the confusion matrix, learning curve, ROC curve, and feature importance to evaluate and interpret the model's performance.
+
+# _________________________Visualization starts here_________________________
+
 
 # Visualizing the Confusion Matrix
 print("Generating visual display of the confusion matrix for enhanced interpretability...")
@@ -404,7 +367,11 @@ def plot_cumulative_gain(y_true, y_scores):
 
 plot_cumulative_gain(y_test, y_scores)
 
+
 # _________________________Saving model starts here_________________________
+# https://www.kaggle.com/datasets/phangud/spamcsv
+
+
 # Save the model to a file
 dump(model, 'MNB_trained_model.joblib')
 
